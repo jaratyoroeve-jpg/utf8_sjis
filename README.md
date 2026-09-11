@@ -27,10 +27,10 @@ some_legacy_api(s.data(), s.size());
 
 ### 変換できない文字の扱い
 
-2番目のテンプレートパラメータに `true` を渡すと、SJIS に変換できない文字や無効な UTF-8 シーケンスを `?` (`0x3F`) に置換します。
+SJIS に変換できない文字や無効な UTF-8 シーケンスは `?` (`0x3F`) に置換します。
 
 ```cpp
-constexpr auto s = utf8_sjis::utf8_to_sjis<"こんにちは🤔世界", true>;
+constexpr auto s = utf8_sjis::utf8_to_sjis<"こんにちは🤔世界">;
 ```
 
 ## サポートファイル

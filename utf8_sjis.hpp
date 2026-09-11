@@ -1,7 +1,8 @@
-// utf8_to_sjis.hpp
+// utf8_sjis.hpp
 #pragma once
 #if __cplusplus > 201703L // c++20
 #include <array>
+#include <utility>
 #include "unicode_to_sjis.hpp"
 #include "unicode_limited_normalization.hpp"
 
@@ -43,10 +44,9 @@ struct sjis_conversion_buffer {
  * UTF-8 文字列リテラルを SJIS に変換し、可変長バッファに格納する.
  *
  * \tparam src 変換対象の UTF-8 文字列リテラル
- * \tparam replace_unmappable 変換できない文字を '?' に置換するかどうか
  * \return 変換結果バッファと実際に使われたバイト数
  */
-template <fixed_string src, bool replace_unmappable>
+template <fixed_string src>
 consteval auto convert_utf8_to_sjis()
 {
     sjis_conversion_buffer<src.size> result{}; // 変換結果バッファ
@@ -55,8 +55,7 @@ consteval auto convert_utf8_to_sjis()
 
     // 不完全または不正な UTF-8 シーケンスを処理するラムダ関数
     auto handle_invalid = [&](std::size_t& pos) {
-        if (replace_unmappable)
-            result.bytes[result.size++] = 0x3F; // '?'
+        result.bytes[result.size++] = 0x3F; // '?'
         pos += 1;
     };
     
@@ -111,8 +110,7 @@ consteval auto convert_utf8_to_sjis()
                 handle_invalid(pos);
                 continue;
             }
-            if (replace_unmappable)
-                result.bytes[result.size++] = 0x3F; // '?'
+            result.bytes[result.size++] = 0x3F; // '?'
             pos += 4;
             continue;
         } else {
@@ -121,13 +119,16 @@ consteval auto convert_utf8_to_sjis()
             continue;
         }
         auto mapped = unicode_to_sjis(codepoint);
-        if (replace_unmappable && mapped.num == 0) {
+        if (mapped.byte[0] == 0) {
             // 変換できない文字は '?' に置換
             result.bytes[result.size++] = 0x3F; // '?'
-            continue;
-        }
-        for (unsigned char j = 0; j < mapped.num; ++j) {
-            result.bytes[result.size++] = mapped.byte[j];
+        }else if (mapped.byte[1] == 0) {
+            // 1バイト文字の場合
+            result.bytes[result.size++] = mapped.byte[0];
+        } else {
+            // 2バイト文字の場合
+            result.bytes[result.size++] = mapped.byte[0];
+            result.bytes[result.size++] = mapped.byte[1];
         }
     }
     if (src.data[src.size - 1] == '\0') {
@@ -141,37 +142,29 @@ consteval auto convert_utf8_to_sjis()
  * SJIS バイト列を固定長 std::array に格納して返す.
  *
  * \tparam src 変換対象の UTF-8 文字列リテラル
- * \tparam replace_unmappable 変換できない文字を '?' に置換するかどうか
  * \return 変換後の SJIS バイト配列
  */
-template <fixed_string src, bool replace_unmappable>
+template <fixed_string src>
 consteval auto make_sjis_array()
 {
-    constexpr auto temporary = convert_utf8_to_sjis<src, replace_unmappable>();
-    std::array<unsigned char, temporary.size> result{};
-
-    for (std::size_t i = 0; i < temporary.size; i++) {
-        result[i] = temporary.bytes[i];
-    }
-
-    return result;
+    constexpr auto temporary = convert_utf8_to_sjis<src>();
+    return [&]<std::size_t... I>(std::index_sequence<I...>) {
+        return std::array<unsigned char, temporary.size>{temporary.bytes[I]...};
+    }(std::make_index_sequence<temporary.size>{});
 }
 
 } // namespace detail
 
 /**
  * UTF-8 文字列リテラルをコンパイル時に SJIS バイト列へ変換する変数テンプレート.
- * 変換できない文字はオプションで '?' に置換可能.
+ * 変換できない文字は '?' に置換.
  * \tparam src 変換対象の UTF-8 文字列リテラル
- * \tparam replace_unmappable 変換できない文字を '?' に置換するかどうか (デフォルト: false)
  * \return 変換後の SJIS バイト配列 (std::array<unsigned char, N>)
  * 使用例:
  *   constexpr auto s = utf8_sjis::utf8_to_sjis<"こんにちは">;
- *   constexpr auto s_with_question = utf8_sjis::utf8_to_sjis<"こんにちは🤔", true>;
- *   // s_with_question は '?' に置き換えられたバイト列になる
  */
-template <detail::fixed_string src, bool replace_unmappable = false>
-constexpr auto utf8_to_sjis = detail::make_sjis_array<src, replace_unmappable>();
+template <detail::fixed_string src>
+inline constexpr auto utf8_to_sjis = detail::make_sjis_array<src>();
 
 } // namespace utf8_sjis
 #else

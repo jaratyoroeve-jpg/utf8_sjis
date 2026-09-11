@@ -31,7 +31,6 @@ def generate():
     lines.append("")
     lines.append("struct unicode_to_sjis_ret_t {")
     lines.append("    unsigned char byte[2]; // byte[0]: 1バイト目, byte[1]: 2バイト目")
-    lines.append("    unsigned char num;     // 0: 変換不可, 1: 1バイト, 2: 2バイト")
     lines.append("};")
     lines.append("")
     lines.append("consteval unicode_to_sjis_ret_t unicode_to_sjis(uint32_t cp)")
@@ -41,14 +40,14 @@ def generate():
     for cp, b in entries:
         if len(b) == 1:
             lines.append(
-                f"    case 0x{cp:04X}: return {{ {{ 0x{b[0]:02X}, 0x00 }}, 1 }};"
+                f"    case 0x{cp:04X}: return {{ {{ 0x{b[0]:02X}, 0x00 }} }};"
             )
         elif len(b) == 2:
             lines.append(
-                f"    case 0x{cp:04X}: return {{ {{ 0x{b[0]:02X}, 0x{b[1]:02X} }}, 2 }};"
+                f"    case 0x{cp:04X}: return {{ {{ 0x{b[0]:02X}, 0x{b[1]:02X} }} }};"
             )
 
-    lines.append("    default:         return { { 0x00, 0x00 }, 0 };")
+    lines.append("    default:     return { { 0x00, 0x00 } };")
     lines.append("    }")
     lines.append("}")
     lines.append("")
